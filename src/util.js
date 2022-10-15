@@ -33,7 +33,25 @@ function validate(schema) {
   };
 }
 
+function validateQuery(schema) {
+  return async function (/** @type {Context} */ ctx, /** @type {Next} */ next) {
+    const { value, error } = schema.validate(ctx.query, {
+      abortEarly: false,
+    });
+
+    if (error) {
+      ctx.status = 400;
+      ctx.body = error.message;
+      return;
+    }
+
+    ctx.query = value;
+    return await next();
+  };
+}
+
 module.exports = {
   validate,
+  validateQuery,
   duplicateKeyHandler,
 };

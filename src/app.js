@@ -1,6 +1,7 @@
 require("dotenv").config();
 const bodyParser = require("koa-bodyparser");
 const jwt = require("jsonwebtoken");
+const cors = require("@koa/cors");
 // ===========================================================================
 const C = require("./core");
 const U = require("./util");
@@ -38,7 +39,7 @@ C.router
     "/data/question/:id",
     A.bearerAuthentication,
     A.userPermissionGuard("delete_question"),
-    deleteQuestion,
+    deleteQuestion
   )
   .post(
     "/data/submission",
@@ -51,11 +52,26 @@ C.router
     A.bearerAuthentication,
     A.userPermissionGuard("get_submission"),
     getSubmission
+  )
+  .get(
+    "/data/answer",
+    A.bearerAuthentication,
+    A.userPermissionGuard("get_submission"),
+    V.validateQuery,
+    getAnswer
+  )
+  .get(
+    "/data/family",
+    A.bearerAuthentication,
+    A.userPermissionGuard("get_submission"),
+    V.validateFamilyQuery,
+    getFamily
   );
 
 C.app
   .use(C.pino)
   .use(bodyParser())
+  .use(cors())
   .use(M.continueMiddleware)
   .use(M.errorHandler)
   .use(M.logRequestBasic)
@@ -148,10 +164,9 @@ async function addQuestion(/** @type {Context} */ ctx) {
 
 async function deleteQuestion(/** @type {Context} */ ctx) {
   const { id } = ctx.params;
-  const res = await C.pool.query(
-    `delete from app.question where id = $1`,
-    [id]
-  );
+  const res = await C.pool.query(`delete from app.question where id = $1`, [
+    id,
+  ]);
 
   ctx.body = "OK";
   ctx.status = 200;
@@ -209,7 +224,7 @@ async function getSubmission(/** @type {Context} */ ctx) {
   const res = await C.pool.query(
     `select
      s.id,
-     s.family_id,
+     s.family_id as "familyId",
      s.geo_data as "geoData",
      sub.email as submitter,
      array_agg(json_build_object(
@@ -225,6 +240,66 @@ async function getSubmission(/** @type {Context} */ ctx) {
      left join app.question q on a.question = q.id
      group by s.id, sub.email`
   );
+
+  ctx.body = res.rows;
+  ctx.status = 200;
+}
+
+async function getAnswer(ctx) {
+  const { question, offset, limit } = ctx.query;
+
+  const sql = `select
+  s.id,
+  s.family_id as "familyId",
+  s.geo_data as "geoData",
+  sub.email as submitter,
+  array_agg(json_build_object(
+     'answerId', a.id,
+     'questionId', a.question,
+     'question', q.content,
+     'answer', a.content,
+     'personNumber', a.person_number
+   )) as answers
+  from app.submission s
+  left join app.user sub on s.submitter = sub.id
+  inner join app.answer a on a.submission = s.id
+  left join app.question q on a.question = q.id
+  where a.question = $1
+  group by s.id, sub.email
+  limit $2
+  offset $3`;
+
+  const res = await C.pool.query(sql, [question, limit, offset]);
+
+  ctx.body = res.rows;
+  ctx.status = 200;
+}
+
+async function getFamily(ctx) {
+  const { familyId, limit, offset } = ctx.query;
+
+  const sql = `select
+  s.id,
+  s.family_id as "familyId",
+  s.geo_data as "geoData",
+  sub.email as submitter,
+  array_agg(json_build_object(
+     'answerId', a.id,
+     'questionId', a.question,
+     'question', q.content,
+     'answer', a.content,
+     'personNumber', a.person_number
+   )) as answers
+  from app.submission s
+  left join app.user sub on s.submitter = sub.id
+  inner join app.answer a on a.submission = s.id
+  left join app.question q on a.question = q.id
+  where s.family_id = $1
+  group by s.id, sub.email
+  limit $2
+  offset $3`;
+
+  const res = await C.pool.query(sql, [familyId, limit, offset]);
 
   ctx.body = res.rows;
   ctx.status = 200;

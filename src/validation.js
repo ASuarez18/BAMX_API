@@ -29,22 +29,38 @@ const submissionSchema = j
     answers: j
       .array()
       .items(
-        j
-          .object()
-          .keys({
-            questionId: j.number().required(),
-            personNumber: j.number().default(null),
-            content: j
-              .object()
-              .keys({
-                yesNo: j.boolean(),
-                text: j.string(),
-                number: j.number(),
-              })
-              .required(),
-          })
+        j.object().keys({
+          questionId: j.number().required(),
+          personNumber: j.number().default(null),
+          content: j
+            .object()
+            .keys({
+              yesNo: j.boolean(),
+              text: j.string(),
+              number: j.number(),
+            })
+            .required(),
+        })
       )
       .default([]),
+  })
+  .required();
+
+const querySchema = j
+  .object()
+  .keys({
+    offset: j.number().default(0),
+    limit: j.number().default(100),
+    question: j.number().required(),
+  })
+  .required();
+
+const queryFamilySchema = j
+  .object()
+  .keys({
+    offset: j.number().default(0),
+    limit: j.number().default(100),
+    familyId: j.string().required(),
   })
   .required();
 
@@ -69,8 +85,21 @@ function validateSubmission(
   return U.validate(submissionSchema)(ctx, next);
 }
 
+function validateQuery(/** @type {Context} */ ctx, /** @type {Next} */ next) {
+  return U.validateQuery(querySchema)(ctx, next);
+}
+
+function validateFamilyQuery(
+  /** @type {Context} */ ctx,
+  /** @type {Next} */ next
+) {
+  return U.validateQuery(queryFamilySchema)(ctx, next);
+}
+
 module.exports = {
   validateUserCredentials,
   validateQuestion,
   validateSubmission,
+  validateQuery,
+  validateFamilyQuery,
 };
